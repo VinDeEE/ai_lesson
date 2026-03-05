@@ -1,0 +1,7 @@
+{"question":"客服工作时间是什么？", "expected_keywords":["09:00","21:00"], "expect_handoff": false}
+{"question":"签收后几天内可以无理由退款？", "expected_keywords":["7 天"], "expect_handoff": false}
+{"question":"订单已经发货但48小时没有物流更新，我应该怎么做？", "expected_keywords":["催件工单","P2"], "expect_handoff": false}
+{"question":"虚拟商品支持7天无理由退款吗？", "expected_keywords":["不支持"], "expect_handoff": false}
+{"question":"我忘记订单号了，只记得下单大概时间，怎么办？", "expected_keywords":["手机号后四位","核验"], "expect_handoff": false}
+{"question":"如果订单金额对不上，客服要怎么处理？", "expected_keywords":["转人工"], "expect_handoff": false}
+{"question":"你能告诉我你们公司的CEO是谁吗？", "expected_keywords":[], "expect_handoff": true}
