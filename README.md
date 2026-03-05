@@ -9,8 +9,9 @@
 ## 1. 项目结构
 
 ```text
-ai_study_starter/
+ai_lesson/
   docs/                  # 你的知识库文档（md/txt）
+    notes/               # 学习笔记归档
   eval/                  # 评测集（jsonl）
   data/                  # 本地向量索引目录（json）
   src/
@@ -44,19 +45,18 @@ Copy-Item .env.example .env
 
 项目内已经放了 3 份示例文档，并已复制你原项目的 4 份学习文档到 `docs/`，可以直接入库。
 
-先进入项目并激活环境（以下命令默认使用 PowerShell）：
+激活环境（以下命令默认使用 PowerShell）：
 
 ```powershell
-cd ai_study_starter
 .venv\Scripts\Activate.ps1
 ```
 
 4. 入库
 
 ```powershell
-python ai_study_starter/src/ingest.py --docs_dir docs --persist_dir data/chroma --collection kb --chunk_size 600 --chunk_overlap 120 --embedding_model gemini-embedding-001 --batch_size 64
+python src/ingest.py --docs_dir docs --persist_dir data/chroma --collection kb --chunk_size 600 --chunk_overlap 120 --embedding_model gemini-embedding-001 --batch_size 64
 ```
-python src/ingest.py --docs_dir docs --persist_dir data/chroma --collection kb 
+
 5. 提问
 
 ```powershell
@@ -102,7 +102,7 @@ python src/evaluate.py --dataset eval/qa_samples.jsonl
 ## 4. 常见问题
 
 1. `GEMINI_API_KEY missing`
-   - 说明 `.env` 没填或没加载，检查 `ai_study_starter/.env`。
+   - 说明 `.env` 没填或没加载，检查仓库根目录 `.env`。
 
 2. `No .md/.txt documents found`
    - 确认 `docs/` 里有 UTF-8 编码的 `.md` 或 `.txt` 文件。
