@@ -1,124 +1,133 @@
-# AI Study Starter
+﻿# AI Lesson Workspace
 
-这是一个从零开始的 AI 学习项目骨架，目标是让你按照「概念 -> 代码 -> 可评测」的方式稳定推进。
+这是一个面向「智能客服 / 知识库 / 坐席辅助」的 AI 学习与实战仓库。
 
-当前版本先落地 A 方向：企业知识库机器人（RAG）。
-完整 6 周学习节奏见 [LEARNING_PLAN.md](./LEARNING_PLAN.md)。
-说明：`docs/` 里有你之前的学习笔记，部分内容提到 OpenAI/LangChain，那是历史资料；当前可运行代码已切换为 Gemini。
+当前状态：
+- Week1 已完成（结构化输出 + Prompt + 基础评测）
+- Week2 已完成（Tool Calling + 最小 Agent + 回归评测）
+- Week3-Week6 计划已落地到文档并预建目录
 
-## 1. 项目结构
+## 1. 核心入口
+
+- 学习总纲：[docs/notes/ai学习计划大纲.md](./docs/notes/ai学习计划大纲.md)
+- 名词释义：[docs/notes/ai名词释义.md](./docs/notes/ai名词释义.md)
+- Week1 记录：[docs/notes/week1](./docs/notes/week1)
+- Week2 记录：[docs/notes/week2](./docs/notes/week2)
+
+## 2. 目录结构（当前）
 
 ```text
 ai_lesson/
-  docs/                  # 你的知识库文档（md/txt）
-    notes/               # 学习笔记归档
-  eval/                  # 评测集（jsonl）
-  data/                  # 本地向量索引目录（json）
+  docs/
+    notes/
+      ai名词释义.md
+      ai学习计划大纲.md
+      week1/
+      week2/
+      week3/
+      week4/
+      week5/
+      week6/
+  eval/
+    qa_samples.jsonl
+    week1_cases.json
+    week2_agent_cases.jsonl
   src/
-    rag_core.py          # 共用核心逻辑（检索 + 生成 + 解析）
-    ingest.py            # 文档入库
-    ask.py               # 单次提问
-    evaluate.py          # 批量评测
+    rag_core.py
+    ingest.py
+    ask.py
+    evaluate.py
+    week1_formatter.py
+    week2_tools.py
+    week2_agent.py
+    week2_eval.py
+  data/
+    chroma/
   .env.example
   requirements.txt
 ```
 
-## 2. 从零到跑通（20 分钟）
-
-1. 创建虚拟环境并安装依赖
+## 3. 环境准备
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-2. 配置环境变量
-
-```powershell
 Copy-Item .env.example .env
 ```
 
-然后编辑 `.env`，填入你的 `GEMINI_API_KEY`。
+然后在 `.env` 中填写 `GEMINI_API_KEY`。
 
-3. 准备知识文档
+## 4. RAG 主线命令
 
-项目内已经放了 3 份示例文档，并已复制你原项目的 4 份学习文档到 `docs/`，可以直接入库。
-
-激活环境（以下命令默认使用 PowerShell）：
+### 4.1 入库
 
 ```powershell
-.venv\Scripts\Activate.ps1
+python src/ingest.py
 ```
 
-4. 入库
+### 4.2 单次问答
 
 ```powershell
-python src/ingest.py --docs_dir docs --persist_dir data/chroma --collection kb --chunk_size 600 --chunk_overlap 120 --embedding_model gemini-embedding-001 --batch_size 64
+python src/ask.py "你的问题"
 ```
 
-5. 提问
-
-```powershell
-python src/ask.py "你的问题" --persist_dir data/chroma --collection kb --top_k 4
-```
-
-你会得到结构化 JSON：
-
-- `answer`
-- `citations`
-- `confidence`
-- `need_handoff`
-- `handoff_reason`
-
-6. 跑评测
+### 4.3 批量评测
 
 ```powershell
 python src/evaluate.py --dataset eval/qa_samples.jsonl
 ```
 
-## 3. 学习节奏（建议）
+## 5. Week1/Week2 可运行脚本
 
-### 第 1 周：结构化输出
+### 5.1 Week1：结构化格式化器
 
-- 目标：让模型稳定返回 JSON
-- 产出：定义 `answer/citations/confidence/need_handoff` 结构并跑通
+```powershell
+python src/week1_formatter.py "订单 A123456 什么时候到" --pretty
+```
 
-### 第 2 周：工具化与异常处理
+### 5.2 Week2：工具层（mock）
 
-- 目标：引入 `create_ticket/get_order_status` 等工具（mock 先行）
-- 产出：低置信度时自动走工单策略
+```powershell
+python src/week2_tools.py search_kb "退款多久到账" --domain refund --top_k 2
+python src/week2_tools.py get_order_status A123456 --phone_tail 8899
+python src/week2_tools.py create_ticket "用户投诉配送延迟" "订单 A123456 超过24小时未更新物流，请专员介入。" P1 u_9527 --category shipping --order_id A123456
+```
 
-### 第 3 周：RAG 1.0
+### 5.3 Week2：最小 Agent
 
-- 目标：文档入库 -> 检索 -> 回答可引用
-- 产出：能回答 FAQ 且能列证据来源
+```powershell
+python src/week2_agent.py "订单 A123456 什么时候到" --user_id u_1001 --trace_id tr_demo_001
+```
 
-### 第 4 周：RAG 2.0 + 评测迭代
+### 5.4 Week2：回归评测
 
-- 目标：提升稳定性与准确率
-- 产出：固定评测集 + 每日回归结果
+```powershell
+python src/week2_eval.py --dataset eval/week2_agent_cases.jsonl --output_md docs/notes/week2/day6_regression.md
+```
 
-## 4. 常见问题
+## 6. 当前进度快照
 
-1. `GEMINI_API_KEY missing`
-   - 说明 `.env` 没填或没加载，检查仓库根目录 `.env`。
+- Week1 产物：
+  - `src/week1_formatter.py`
+  - `eval/week1_cases.json`
+- Week2 产物：
+  - `docs/notes/week2/tool_schemas.md`
+  - `src/week2_tools.py`
+  - `src/week2_agent.py`
+  - `src/week2_eval.py`
+  - `eval/week2_agent_cases.jsonl`
+  - `docs/notes/week2/day6_regression.md`
+  - `docs/notes/week2/week2_review.md`
 
-2. `No .md/.txt documents found`
-   - 确认 `docs/` 里有 UTF-8 编码的 `.md` 或 `.txt` 文件。
+## 7. 下一步（Week3）
 
-3. 回答不稳定
-   - 先调 `chunk_size/chunk_overlap/top_k`，再考虑换模型。
+1. 完成切块策略文档：`docs/notes/week3/chunk_strategy.md`
+2. 打通 RAG 1.0 链路（入库 -> 检索 -> 回答 -> 引用）
+3. 将 Week2 的 `search_kb` mock 替换为真实检索实现
 
-4. `Gemini API error HTTP 404 ... embedContent`
-   - 把 `.env` 的 `EMBEDDING_MODEL` 改成 `gemini-embedding-001`。
+## 8. 常见问题
 
-5. `Gemini API error HTTP 404 ... generateContent`
-   - 把 `.env` 的 `GEMINI_MODEL` 改成你账号可用模型（例如 `gemini-2.0-flash`）。
-   - 或配置 `GEMINI_MODEL_FALLBACKS`，代码会自动尝试备用模型。
-
-## 5. 下一步建议
-
-1. 将 `docs/` 里的示例文档逐步替换成你的真实业务 FAQ/SOP（先 10-20 条即可）。
-2. 补充 `eval/qa_samples.jsonl` 到 30-50 条，覆盖命中/模糊/拒答场景。
-3. 再加工具层，把 `need_handoff=true` 的问题自动创建工单。
+- `GEMINI_API_KEY missing`：检查仓库根目录 `.env` 是否存在并包含 `GEMINI_API_KEY`。
+- `No .md/.txt documents found`：确认 `docs/` 下有可入库文档。
+- 回答不稳定：优先调参 `chunk_size`、`chunk_overlap`、`top_k`、提示词约束。

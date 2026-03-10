@@ -1,0 +1,30 @@
+﻿{"id":"W2-001","query":"订单 A123456 什么时候到","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-002","query":"请帮我查一下 B778899 物流进度","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-003","query":"我的单号 G654321 现在是什么状态","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-004","query":"A123456 一直没到，麻烦催一下","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-005","query":"X000000 还没到货吗","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status","expected_error_code":"NOT_FOUND"}
+{"id":"W2-006","query":"我的订单 Z999999 到哪了","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status","expected_error_code":"NOT_FOUND"}
+{"id":"W2-007","query":"催单 A123456","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-008","query":"还没发货，订单号 B778899","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-009","query":"单号 A123456 现在到哪了","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-010","query":"订单 A123456 物流不动了","expected_intent":"催单","expected_action":"tool_call","expected_tool":"get_order_status"}
+{"id":"W2-011","query":"帮我催一下订单","expected_intent":"催单","expected_action":"ask_followup"}
+{"id":"W2-012","query":"怎么还没到","expected_intent":"催单","expected_action":"ask_followup"}
+{"id":"W2-013","query":"还没发货，帮我看看","expected_intent":"催单","expected_action":"ask_followup"}
+{"id":"W2-014","query":"我想催单","expected_intent":"催单","expected_action":"ask_followup"}
+{"id":"W2-015","query":"快递迟迟不到怎么办","expected_intent":"催单","expected_action":"ask_followup"}
+{"id":"W2-016","query":"你们支持7天无理由退货吗","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-017","query":"运费险怎么赔付","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-018","query":"发票可以补开吗","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-019","query":"你们周末有人处理工单吗","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-020","query":"这个活动规则是什么","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-021","query":"我要退款，订单 A123456","expected_intent":"退款","expected_action":"ask_followup"}
+{"id":"W2-022","query":"帮我退钱","expected_intent":"退款","expected_action":"ask_followup"}
+{"id":"W2-023","query":"这个单我想退款","expected_intent":"退款","expected_action":"ask_followup"}
+{"id":"W2-024","query":"我要申请退款，单号 B778899","expected_intent":"退款","expected_action":"ask_followup"}
+{"id":"W2-025","query":"我要退货退款","expected_intent":"退款","expected_action":"ask_followup"}
+{"id":"W2-026","query":"我要投诉你们客服","expected_intent":"投诉","expected_action":"ask_followup"}
+{"id":"W2-027","query":"我要举报配送员态度差","expected_intent":"投诉","expected_action":"ask_followup"}
+{"id":"W2-028","query":"我对这次服务很不满意，要投诉","expected_intent":"投诉","expected_action":"ask_followup"}
+{"id":"W2-029","query":"你好","expected_intent":"未知","expected_action":"tool_call","expected_tool":"search_kb"}
+{"id":"W2-030","query":"在吗","expected_intent":"咨询","expected_action":"tool_call","expected_tool":"search_kb"}

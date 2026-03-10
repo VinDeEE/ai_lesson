@@ -1,0 +1,92 @@
+﻿[
+  {
+    "id": "C001",
+    "query": "我的订单 A123456 什么时候到？",
+    "expected_intent": "催单",
+    "expected_required_info": []
+  },
+  {
+    "id": "C002",
+    "query": "订单 B778899 一直不发货，帮我查下",
+    "expected_intent": "催单",
+    "expected_required_info": []
+  },
+  {
+    "id": "C003",
+    "query": "我要退款，订单号是 C998877",
+    "expected_intent": "退款",
+    "expected_required_info": ["refund_reason"]
+  },
+  {
+    "id": "C004",
+    "query": "这个订单我想申请退款",
+    "expected_intent": "退款",
+    "expected_required_info": ["order_id", "refund_reason"]
+  },
+  {
+    "id": "C005",
+    "query": "我地址填错了，订单 D665544 要改到浦东新区",
+    "expected_intent": "改地址",
+    "expected_required_info": ["new_address"]
+  },
+  {
+    "id": "C006",
+    "query": "帮我改收货地址，单号 E112233",
+    "expected_intent": "改地址",
+    "expected_required_info": ["new_address"]
+  },
+  {
+    "id": "C007",
+    "query": "我要投诉你们客服，态度太差了",
+    "expected_intent": "投诉",
+    "expected_required_info": ["issue_detail"]
+  },
+  {
+    "id": "C008",
+    "query": "我要举报配送员",
+    "expected_intent": "投诉",
+    "expected_required_info": ["issue_detail"]
+  },
+  {
+    "id": "C009",
+    "query": "你们支持 7 天无理由退货吗？",
+    "expected_intent": "咨询",
+    "expected_required_info": []
+  },
+  {
+    "id": "C010",
+    "query": "运费险怎么赔付",
+    "expected_intent": "咨询",
+    "expected_required_info": []
+  },
+  {
+    "id": "C011",
+    "query": "我的后四位是 8899，帮我查下物流",
+    "expected_intent": "催单",
+    "expected_required_info": ["order_id"]
+  },
+  {
+    "id": "C012",
+    "query": "我要退钱",
+    "expected_intent": "退款",
+    "expected_required_info": ["order_id", "refund_reason"]
+  },
+  {
+    "id": "C013",
+    "query": "你好",
+    "expected_intent": "未知",
+    "expected_required_info": []
+  },
+  {
+    "id": "C014",
+    "query": "我单号 F123ABC 改地址到北京海淀区中关村 1 号",
+    "expected_intent": "改地址",
+    "expected_required_info": []
+  },
+  {
+    "id": "C015",
+    "query": "订单 G654321 退款，商品有破损",
+    "expected_intent": "退款",
+    "expected_required_info": []
+  }
+]
