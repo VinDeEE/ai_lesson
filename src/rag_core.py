@@ -1,7 +1,9 @@
 import json
 import math
 import os
+import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -45,16 +47,17 @@ bootstrap_env()
 
 
 OUTPUT_SCHEMA_HINT = """
-返回 JSON，字段如下：
+Return JSON only with this shape:
 {
-  "answer": "字符串，给用户的最终答复",
+  "answer": "Final answer for the user, preferably in Chinese.",
   "citations": [
-    {"source_file":"来源文件名","chunk_id":"分段ID","quote":"证据片段"}
+    {"source_file":"source file name","chunk_id":"chunk id","quote":"supporting quote"}
   ],
   "confidence": "high|medium|low",
-  "need_handoff": true|false,
-  "handoff_reason": "需要人工时说明原因，不需要则空字符串"
+  "need_handoff": true,
+  "handoff_reason": "Reason for human handoff, or empty string when not needed"
 }
+Do not wrap the JSON in markdown code fences.
 """
 
 
@@ -100,11 +103,70 @@ def _is_generate_model_unavailable_error(msg: str) -> bool:
     )
 
 
+def _should_fallback_to_single_embedding(msg: str) -> bool:
+    text = msg.lower()
+    return "not supported for batchembedcontents" in text or "method not found" in text
+
+
+def _parse_retry_delay_seconds(value: Any) -> Optional[float]:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().rstrip(".")
+    if cleaned.endswith("s"):
+        cleaned = cleaned[:-1]
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _extract_seconds_from_text(text: str) -> Optional[float]:
+    if not text:
+        return None
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)s\b", text)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _extract_retry_delay_seconds(detail: str) -> Optional[float]:
+    try:
+        payload = json.loads(detail)
+    except json.JSONDecodeError:
+        payload = None
+
+    if isinstance(payload, dict):
+        error = payload.get("error", {})
+        if isinstance(error, dict):
+            for item in error.get("details", []):
+                if not isinstance(item, dict):
+                    continue
+                delay = _parse_retry_delay_seconds(item.get("retryDelay"))
+                if delay is not None:
+                    return delay
+            delay = _extract_seconds_from_text(str(error.get("message", "")))
+            if delay is not None:
+                return delay
+
+    return _extract_seconds_from_text(detail)
+
+
+def _is_retryable_http_error(status_code: int, detail: str) -> bool:
+    text = detail.lower()
+    return status_code in {429, 500, 503} or "resource_exhausted" in text or "unavailable" in text
+
+
 def _gemini_request(path: str, payload: Dict[str, Any], timeout: int = 120) -> Dict[str, Any]:
     api_key = get_env("GEMINI_API_KEY")
     base = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
     url = f"{base}/{path}?key={urllib.parse.quote(api_key)}"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    retry_limit = max(0, int(os.getenv("GEMINI_API_MAX_RETRIES", "6")))
 
     req = urllib.request.Request(
         url=url,
@@ -112,15 +174,30 @@ def _gemini_request(path: str, payload: Dict[str, Any], timeout: int = 120) -> D
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8")
-            return json.loads(body)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"Gemini API error HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Gemini API network error: {exc}") from exc
+    attempt = 0
+    while True:
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8")
+                return json.loads(body)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            if attempt < retry_limit and _is_retryable_http_error(exc.code, detail):
+                attempt += 1
+                delay = _extract_retry_delay_seconds(detail)
+                if delay is None:
+                    delay = min(60.0, float(2 ** attempt))
+                delay = max(1.0, delay)
+                print(
+                    f"[WARN] Gemini API throttled on `{path}`; retrying in {delay:.1f}s "
+                    f"({attempt}/{retry_limit}).",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+                continue
+            raise RuntimeError(f"Gemini API error HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Gemini API network error: {exc}") from exc
 
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
@@ -166,11 +243,19 @@ def embed_texts(texts: List[str], embedding_model: str, batch_size: int = 64) ->
                             ]
                         },
                     )
-                    vectors.extend(item["values"] for item in response.get("embeddings", []))
+                    embeddings = response.get("embeddings", [])
+                    if len(embeddings) != len(batch):
+                        raise RuntimeError(
+                            "Gemini batch embedding response size mismatch: "
+                            f"expected {len(batch)}, got {len(embeddings)}"
+                        )
+                    vectors.extend(item["values"] for item in embeddings)
                 except RuntimeError as exc:
                     if "GEMINI_API_KEY" in str(exc):
                         raise
-                    # fallback to single embed call when batch API is unavailable
+                    if not _should_fallback_to_single_embedding(str(exc)):
+                        raise
+                    # Fall back only when the batch endpoint itself is unsupported.
                     for text in batch:
                         response = _gemini_request(
                             path=f"models/{model}:embedContent",
@@ -269,6 +354,9 @@ def build_context(evidence: List[Dict[str, Any]]) -> str:
 
 def extract_json(text: str) -> Dict[str, Any]:
     cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
@@ -301,7 +389,10 @@ def call_chat_model(prompt: str, model_name: str) -> str:
                 path=f"models/{model}:generateContent",
                 payload={
                     "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0},
+                    "generationConfig": {
+                        "temperature": 0,
+                        "responseMimeType": "application/json",
+                    },
                 },
             )
 
@@ -388,17 +479,17 @@ def answer_question(
     context = build_context(evidence)
 
     prompt = f"""
-你是企业知识库问答助手。你只能根据证据回答，不要编造。
-如果证据不足，必须 need_handoff=true。
-回答简洁、可执行，优先中文。
+You are an enterprise knowledge-base QA assistant.
+Answer only from the evidence below. Do not invent facts.
+If the evidence is insufficient or the user's question is ambiguous, set need_handoff=true.
+Keep the answer concise and actionable. Prefer Chinese in the answer field.
 
-问题：
-{question}
+Question: {question}
 
-证据：
+Evidence:
 {context}
 
-检索置信提示：{score_hint}
+Retrieval confidence hint: {score_hint}
 
 {OUTPUT_SCHEMA_HINT}
 """.strip()

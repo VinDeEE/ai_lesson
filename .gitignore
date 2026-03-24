@@ -7,3 +7,4 @@ src/__pycache__/
 .env
 kb.json
 data/chroma/
+docs/notes/
