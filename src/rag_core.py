@@ -47,17 +47,17 @@ bootstrap_env()
 
 
 OUTPUT_SCHEMA_HINT = """
-Return JSON only with this shape:
+请只返回 JSON，字段结构如下：
 {
-  "answer": "Final answer for the user, preferably in Chinese.",
+  "answer": "给用户的最终答复，优先使用中文。",
   "citations": [
-    {"source_file":"source file name","chunk_id":"chunk id","quote":"supporting quote"}
+    {"source_file":"来源文件名","chunk_id":"分段ID","quote":"证据片段"}
   ],
   "confidence": "high|medium|low",
   "need_handoff": true,
-  "handoff_reason": "Reason for human handoff, or empty string when not needed"
+  "handoff_reason": "需要人工处理时给出原因；不需要时返回空字符串"
 }
-Do not wrap the JSON in markdown code fences.
+不要用 markdown 代码块包裹 JSON。
 """
 
 
@@ -425,9 +425,9 @@ def call_chat_model(prompt: str, model_name: str) -> str:
     raise RuntimeError("No generation model candidate could be executed.")
 
 
-def _fallback_answer(reason: str, evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_citations(evidence: List[Dict[str, Any]], limit: int = 2) -> List[Dict[str, Any]]:
     citations = []
-    for item in evidence[:2]:
+    for item in evidence[:limit]:
         quote = item["text"].replace("\n", " ").strip()
         citations.append(
             {
@@ -436,13 +436,71 @@ def _fallback_answer(reason: str, evidence: List[Dict[str, Any]]) -> Dict[str, A
                 "quote": quote[:180] + ("..." if len(quote) > 180 else ""),
             }
         )
+    return citations
+
+
+def _build_retrieval_meta(
+    evidence: List[Dict[str, Any]],
+    index: Dict[str, Any],
+    top_k: int,
+) -> Dict[str, Any]:
     top_score = evidence[0]["score"] if evidence else None
     return {
-        "answer": "当前输出解析失败，建议转人工处理。",
-        "citations": citations,
+        "top_k": top_k,
+        "top_score": top_score,
+        "evidence_count": len(evidence),
+        "index_updated_at": index.get("updated_at"),
+    }
+
+
+def _fallback_answer(reason: str, evidence: List[Dict[str, Any]]) -> Dict[str, Any]:
+    top_score = evidence[0]["score"] if evidence else None
+    return {
+        "mode": "llm",
+        "answer": "模型输出解析失败，建议转人工处理。",
+        "citations": _build_citations(evidence, limit=2),
         "confidence": _score_bucket(top_score),
         "need_handoff": True,
         "handoff_reason": reason,
+    }
+
+
+def _no_evidence_answer() -> Dict[str, Any]:
+    return {
+        "mode": "llm",
+        "answer": "知识库中没有找到可用证据，建议转人工处理。",
+        "citations": [],
+        "confidence": "low",
+        "need_handoff": True,
+        "handoff_reason": "知识库检索为空。",
+    }
+
+
+def _vector_only_answer(
+    evidence: List[Dict[str, Any]],
+    index: Dict[str, Any],
+    top_k: int,
+) -> Dict[str, Any]:
+    top_score = evidence[0]["score"] if evidence else None
+    confidence = _score_bucket(top_score)
+
+    preview_lines = ["仅向量模式：不调用生成模型，只展示按相似度召回的原始片段。"]
+    for idx, item in enumerate(evidence, start=1):
+        snippet = item["text"].strip().replace("\r\n", "\n")
+        if len(snippet) > 220:
+            snippet = snippet[:220].rstrip() + "..."
+        preview_lines.append(
+            f"[{idx}] {item['source_file']} | {item['chunk_id']} | score={item['score']:.3f}\n{snippet}"
+        )
+
+    return {
+        "mode": "vector_only",
+        "answer": "\n\n".join(preview_lines),
+        "citations": _build_citations(evidence, limit=min(3, len(evidence))),
+        "confidence": confidence,
+        "need_handoff": confidence == "low",
+        "handoff_reason": "" if confidence != "low" else "向量检索置信度较低。",
+        "retrieval": _build_retrieval_meta(evidence=evidence, index=index, top_k=top_k),
     }
 
 
@@ -453,6 +511,7 @@ def answer_question(
     top_k: int = 4,
     model: Optional[str] = None,
     embedding_model: Optional[str] = None,
+    vector_only: bool = False,
 ) -> Dict[str, Any]:
     model_name = model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     embed_model = embedding_model or os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
@@ -466,30 +525,27 @@ def answer_question(
     )
 
     if not evidence:
-        return {
-            "answer": "知识库中没有找到可用证据，建议转人工处理。",
-            "citations": [],
-            "confidence": "low",
-            "need_handoff": True,
-            "handoff_reason": "知识库检索为空。",
-        }
+        return _no_evidence_answer()
+
+    if vector_only:
+        return _vector_only_answer(evidence=evidence, index=index, top_k=top_k)
 
     top_score = evidence[0]["score"]
     score_hint = _score_bucket(top_score)
     context = build_context(evidence)
 
     prompt = f"""
-You are an enterprise knowledge-base QA assistant.
-Answer only from the evidence below. Do not invent facts.
-If the evidence is insufficient or the user's question is ambiguous, set need_handoff=true.
-Keep the answer concise and actionable. Prefer Chinese in the answer field.
+你是企业知识库问答助手。
+你只能依据下面给出的证据回答，不要编造信息。
+如果证据不足，或者用户问题本身不够明确，请设置 need_handoff=true。
+回答要简洁、可执行，answer 字段优先使用中文。
 
-Question: {question}
+问题：{question}
 
-Evidence:
+证据：
 {context}
 
-Retrieval confidence hint: {score_hint}
+检索置信提示：{score_hint}
 
 {OUTPUT_SCHEMA_HINT}
 """.strip()
@@ -500,30 +556,18 @@ Retrieval confidence hint: {score_hint}
     except Exception as exc:
         return _fallback_answer(f"模型输出不是合法 JSON: {exc}", evidence)
 
+    data.setdefault("mode", "llm")
     data.setdefault("answer", "")
     data.setdefault("citations", [])
     data.setdefault("confidence", _score_bucket(top_score))
     data.setdefault("need_handoff", data.get("confidence") == "low")
-    data.setdefault("handoff_reason", "" if not data["need_handoff"] else "证据不足")
+    data.setdefault("handoff_reason", "" if not data["need_handoff"] else "证据不足。")
 
     if not isinstance(data["citations"], list):
         data["citations"] = []
 
     if not data["citations"]:
-        first = evidence[0]
-        quote = first["text"].replace("\n", " ").strip()
-        data["citations"] = [
-            {
-                "source_file": first["source_file"],
-                "chunk_id": first["chunk_id"],
-                "quote": quote[:180] + ("..." if len(quote) > 180 else ""),
-            }
-        ]
+        data["citations"] = _build_citations(evidence, limit=1)
 
-    data["retrieval"] = {
-        "top_k": top_k,
-        "top_score": top_score,
-        "evidence_count": len(evidence),
-        "index_updated_at": index.get("updated_at"),
-    }
+    data["retrieval"] = _build_retrieval_meta(evidence=evidence, index=index, top_k=top_k)
     return data

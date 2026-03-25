@@ -70,6 +70,7 @@ python src/ingest.py
 
 ```powershell
 python src/ask.py "你的问题"
+python src/ask.py "你的问题" --vector_only
 ```
 
 ### 4.3 批量评测

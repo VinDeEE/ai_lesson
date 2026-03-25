@@ -12,6 +12,11 @@ def main() -> None:
     parser.add_argument("--top_k", type=int, default=4)
     parser.add_argument("--model", default=None)
     parser.add_argument("--embedding_model", default=None)
+    parser.add_argument(
+        "--vector_only",
+        action="store_true",
+        help="Skip generation model and return retrieved chunks only.",
+    )
     args = parser.parse_args()
 
     result = answer_question(
@@ -21,6 +26,7 @@ def main() -> None:
         top_k=args.top_k,
         model=args.model,
         embedding_model=args.embedding_model,
+        vector_only=args.vector_only,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
